@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import sys
+from PIL import Image, ImageDraw, ImageFont
+
+
+def intensity_to_ascii(intensity: int):
+    ascii_palette = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+    return ascii_palette[int(intensity/256 * len(ascii_palette))]
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='ToDo')
+    parser.add_argument('--input-image', help='Input image', type=str, required=True)
+    parser.add_argument('--font', help='Font typeset', type=str, required=False, default='UbuntuMono-R.ttf')
+    parser.add_argument('--font-size', help='Font size', type=int, required=False, default=18)
+    parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0,0,0])
+    parser.add_argument('--fg', help='Foreground RGB color. If unspecified, will use from image.', type=int, nargs=3, required=False)
+    parser.add_argument('--scale', help='Output scale', type=float, required=False, default=1.0)
+    parser.add_argument('--output', help='Output ASCII mosaic', type=str, required=True)
+    args = parser.parse_args()
+
+    # Read input image
+    if not os.path.exists(os.path.abspath(args.input_image)):
+        print("Error: file {} does not exist.".format(args.input_image))
+        sys.exit(1)
+
+    input_image = Image.open(os.path.abspath(args.input_image))
+    input_width, input_height = input_image.size
+
+    # Prepare font asset
+    if not os.path.exists(os.path.abspath(args.input_image)):
+        print("Error: can not load true type font at {}.".format(args.font))
+        sys.exit(1)
+
+    font = ImageFont.truetype(font=os.path.abspath(args.font), size=args.font_size)
+    font_width, font_height = font.getsize("O")
+
+    # Rescale input image to scale and font size
+    resized_image = input_image.resize((int(args.scale * input_width / font_width), int(args.scale * input_height / font_height)), Image.NEAREST)
+    resized_width, resized_height = resized_image.size
+    iterable_image = resized_image.load()
+
+    # Prepare output canvas
+    output_image = Image.new('RGB', (font_width * resized_width, font_height * resized_height), color=tuple(args.bg))
+    canvas = ImageDraw.Draw(output_image)
+
+    for i in range(resized_height):
+        for j in range(resized_width):
+            r, g, b = iterable_image[j, i]
+            char = intensity_to_ascii(int((r + g + b)/3))
+            canvas.text((j*font_width, i*font_height), char, font=font, fill=tuple(args.fg) if args.fg else (r, g, b))
+
+    output_image.save(os.path.abspath(args.output))
+    sys.exit(0)
