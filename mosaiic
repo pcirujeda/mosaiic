@@ -3,12 +3,41 @@
 import argparse
 import os
 import sys
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageSequence
 
 
 def intensity_to_ascii(intensity: int):
     ascii_palette = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
     return ascii_palette[int(intensity/256 * len(ascii_palette))]
+
+
+def ascii_gif(input_gif, font, scale, bg, fg):
+    palette = input_gif.getpalette()
+    ascii_frames = []
+    i = 0
+    try:
+        while 1:
+            input_gif.putpalette(palette)
+            new_im = Image.new("RGB", input_gif.size)
+            new_im.paste(input_gif)
+            frame_path = '/home/alejandro/sandbox/gif_frames/foo'+str(i)+'.jpg'
+            new_im.save(frame_path)
+            input_image = Image.open(frame_path)
+            ascii_frames.append(ascii_image(input_image, font, scale, bg, fg))
+
+            i += 1
+            input_gif.seek(input_gif.tell() + 1)
+    except EOFError:
+        pass
+    # for frame in ImageSequence.Iterator(input_gif):
+
+    #     frame_path = "/home/alejandro/sandbox/gif_frames/frame"
+    #     frame.convert('RGB')
+    #     frame.save(frame_path, format="JPEG")
+    #     # frame.save(frame_path, format="bmp")
+    #     # input_image = Image.open(frame_path)
+    #     break
+    return ascii_frames
 
 
 def ascii_image(input_image, font, scale, bg, fg):
@@ -20,7 +49,6 @@ def ascii_image(input_image, font, scale, bg, fg):
 
     output_image = Image.new('RGB', (font_width * resized_width, font_height * resized_height), color=tuple(bg))
     canvas = ImageDraw.Draw(output_image)
-
     for i in range(resized_height):
         for j in range(resized_width):
             r, g, b = iterable_image[j, i]
@@ -31,7 +59,7 @@ def ascii_image(input_image, font, scale, bg, fg):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ToDo')
-    parser.add_argument('--input-image', help='Input image', type=str, required=True)
+    parser.add_argument('--input-image', help='Input jpg/jpeg image', type=str, required=True)
     parser.add_argument('--font', help='Font typeset', type=str, required=False, default='UbuntuMono-R.ttf')
     parser.add_argument('--font-size', help='Font size', type=int, required=False, default=18)
     parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0, 0, 0])
@@ -40,13 +68,6 @@ if __name__ == '__main__':
     parser.add_argument('--output', help='Output ASCII mosaic', type=str, required=True)
     args = parser.parse_args()
 
-    # Read input image
-    if not os.path.exists(os.path.abspath(args.input_image)):
-        print("Error: file {} does not exist.".format(args.input_image))
-        sys.exit(1)
-
-    input_image = Image.open(os.path.abspath(args.input_image))
-
     # Prepare font asset
     if not os.path.exists(os.path.abspath(args.input_image)):
         print("Error: can not load true type font at {}.".format(args.font))
@@ -54,7 +75,23 @@ if __name__ == '__main__':
 
     font = ImageFont.truetype(font=os.path.abspath(args.font), size=args.font_size)
 
-    output_image = ascii_image(input_image, font, args.scale, args.bg, args.fg)
-    output_image.save(os.path.abspath(args.output))
+    # Read input image
+    if not os.path.exists(os.path.abspath(args.input_image)):
+        print("Error: file {} does not exist.".format(args.input_image))
+        sys.exit(1)
 
+    input_image = Image.open(os.path.abspath(args.input_image))
+
+    if input_image.format == "JPEG":
+
+        output_image = ascii_image(input_image, font, args.scale, args.bg, args.fg)
+        output_image.save(os.path.abspath(args.output))
+
+    elif input_image.format == "GIF":
+        duration = input_image.info["duration"]
+        loop = input_image.info['loop']
+        gif_frames = ascii_gif(input_image, font, args.scale, args.bg, args.fg)
+        output_image = Image.new("RGBA", gif_frames[0].size)
+        output_image.save(fp=args.output, format='GIF', append_images=gif_frames,
+                          save_all=True, duration=duration, loop=loop)
     sys.exit(0)
