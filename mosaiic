@@ -8,14 +8,19 @@ from PIL import Image, ImageDraw, ImageFont
 
 def intensity_to_ascii(intensity: int):
     ascii_palette = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
-    return ascii_palette[int(intensity/256 * len(ascii_palette))]
+    return ascii_palette[int(intensity/255 * len(ascii_palette))]
+
+
+def ascii_image(input_image, font, bg, fg):
+    pass
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ToDo')
     parser.add_argument('--input-image', help='Input image', type=str, required=True)
     parser.add_argument('--font', help='Font typeset', type=str, required=False, default='UbuntuMono-R.ttf')
     parser.add_argument('--font-size', help='Font size', type=int, required=False, default=18)
-    parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0,0,0])
+    parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0, 0, 0])
     parser.add_argument('--fg', help='Foreground RGB color. If unspecified, will use from image.', type=int, nargs=3, required=False)
     parser.add_argument('--scale', help='Output scale', type=float, required=False, default=1.0)
     parser.add_argument('--output', help='Output ASCII mosaic', type=str, required=True)
