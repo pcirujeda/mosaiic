@@ -14,29 +14,13 @@ def intensity_to_ascii(intensity: int):
 def ascii_gif(input_gif, font, scale, bg, fg):
     palette = input_gif.getpalette()
     ascii_frames = []
-    i = 0
-    try:
-        while 1:
-            input_gif.putpalette(palette)
-            new_im = Image.new("RGB", input_gif.size)
-            new_im.paste(input_gif)
-            frame_path = '/home/alejandro/sandbox/gif_frames/foo'+str(i)+'.jpg'
-            new_im.save(frame_path)
-            input_image = Image.open(frame_path)
-            ascii_frames.append(ascii_image(input_image, font, scale, bg, fg))
 
-            i += 1
-            input_gif.seek(input_gif.tell() + 1)
-    except EOFError:
-        pass
-    # for frame in ImageSequence.Iterator(input_gif):
+    for frame in ImageSequence.Iterator(input_gif):
+        frame.putpalette(palette)
+        frame_im = Image.new("RGB", frame.size)
+        frame_im.paste(frame)
+        ascii_frames.append(ascii_image(frame_im, font, scale, bg, fg))
 
-    #     frame_path = "/home/alejandro/sandbox/gif_frames/frame"
-    #     frame.convert('RGB')
-    #     frame.save(frame_path, format="JPEG")
-    #     # frame.save(frame_path, format="bmp")
-    #     # input_image = Image.open(frame_path)
-    #     break
     return ascii_frames
 
 
@@ -59,7 +43,7 @@ def ascii_image(input_image, font, scale, bg, fg):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ToDo')
-    parser.add_argument('--input-image', help='Input jpg/jpeg image', type=str, required=True)
+    parser.add_argument('--input-image', help='Input jpg/jpeg or gif image', type=str, required=True)
     parser.add_argument('--font', help='Font typeset', type=str, required=False, default='UbuntuMono-R.ttf')
     parser.add_argument('--font-size', help='Font size', type=int, required=False, default=18)
     parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0, 0, 0])
