@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 from PIL import Image, ImageDraw, ImageFont, ImageSequence
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from functools import partial
 
 def intensity_to_ascii(intensity: int):
@@ -27,7 +27,7 @@ def ascii_gif_parallel(input_gif, font, scale, bg, fg):
     ascii_frames = []    
     image_iterator = ImageSequence.Iterator(input_gif)
     func = partial(ascii_image_parallel, font, palette, scale, bg, fg)
-    pool = Pool(8)
+    pool = Pool(cpu_count())
     imap_it = pool.imap(func, image_iterator)
     for frame in imap_it:
         ascii_frames.append(frame)
