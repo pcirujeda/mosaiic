@@ -3,31 +3,71 @@
 import argparse
 import os
 import sys
-from PIL import Image, ImageDraw, ImageFont
-
+from PIL import Image, ImageDraw, ImageFont, ImageSequence
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 def intensity_to_ascii(intensity: int):
     ascii_palette = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
     return ascii_palette[int(intensity/256 * len(ascii_palette))]
 
-if __name__ == '__main__':
+def ascii_gif(input_gif, font, scale, bg, fg):
+    palette = input_gif.getpalette()
+    ascii_frames = []
+    
+    for frame in ImageSequence.Iterator(input_gif):
+        frame.putpalette(palette)
+        frame_im = Image.new("RGB", frame.size)
+        frame_im.paste(frame)
+        ascii_frames.append(ascii_image(frame_im, font, scale, bg, fg))
+    return ascii_frames
+
+def ascii_gif_parallel(input_gif, font, scale, bg, fg):
+    palette = input_gif.getpalette()
+    ascii_frames = []    
+    image_iterator = ImageSequence.Iterator(input_gif)
+    func = partial(ascii_image_parallel, font, palette, scale, bg, fg)
+    pool = Pool(cpu_count())
+    imap_it = pool.imap(func, image_iterator)
+    for frame in imap_it:
+        ascii_frames.append(frame)
+    return ascii_frames
+
+def ascii_image_parallel(font_pair, palette, scale, bg, fg, frame):
+    frame.putpalette(palette)
+    frame_im = Image.new("RGB", frame.size)
+    frame_im.paste(frame)
+    font = ImageFont.truetype(font=os.path.abspath(font_pair[0]), size=font_pair[1])
+    return ascii_image(frame_im, font, scale, bg, fg)
+
+def ascii_image(input_image, font, scale, bg, fg):
+    input_width, input_height = input_image.size
+    font_width, font_height = font.getsize("O")
+    resized_image = input_image.resize((int(scale * input_width / font_width), int(scale * input_height / font_height)), Image.NEAREST)
+    resized_width, resized_height = resized_image.size
+    iterable_image = resized_image.load()
+
+    output_image = Image.new('RGB', (font_width * resized_width, font_height * resized_height), color=tuple(bg))
+    canvas = ImageDraw.Draw(output_image)
+    for i in range(resized_height):
+        for j in range(resized_width):
+            r, g, b = iterable_image[j, i]
+            char = intensity_to_ascii(int((r + g + b)/3))
+            canvas.text((j*font_width, i*font_height), char, font=font, fill=tuple(fg) if fg else (r, g, b))
+    return output_image
+
+
+if __name__ == '__main__':  
     parser = argparse.ArgumentParser(description='ToDo')
-    parser.add_argument('--input-image', help='Input image', type=str, required=True)
+    parser.add_argument('--input-image', help='Input jpg/jpeg or gif image', type=str, required=True)
     parser.add_argument('--font', help='Font typeset', type=str, required=False, default='UbuntuMono-R.ttf')
     parser.add_argument('--font-size', help='Font size', type=int, required=False, default=18)
-    parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0,0,0])
+    parser.add_argument('--bg', help='Background RGB color', type=int, nargs=3, required=False, default=[0, 0, 0])
     parser.add_argument('--fg', help='Foreground RGB color. If unspecified, will use from image.', type=int, nargs=3, required=False)
     parser.add_argument('--scale', help='Output scale', type=float, required=False, default=1.0)
+    parser.add_argument('--parallel', help='Parallelize computation', action='store_true')
     parser.add_argument('--output', help='Output ASCII mosaic', type=str, required=True)
     args = parser.parse_args()
-
-    # Read input image
-    if not os.path.exists(os.path.abspath(args.input_image)):
-        print("Error: file {} does not exist.".format(args.input_image))
-        sys.exit(1)
-
-    input_image = Image.open(os.path.abspath(args.input_image))
-    input_width, input_height = input_image.size
 
     # Prepare font asset
     if not os.path.exists(os.path.abspath(args.input_image)):
@@ -35,22 +75,27 @@ if __name__ == '__main__':
         sys.exit(1)
 
     font = ImageFont.truetype(font=os.path.abspath(args.font), size=args.font_size)
-    font_width, font_height = font.getsize("O")
 
-    # Rescale input image to scale and font size
-    resized_image = input_image.resize((int(args.scale * input_width / font_width), int(args.scale * input_height / font_height)), Image.NEAREST)
-    resized_width, resized_height = resized_image.size
-    iterable_image = resized_image.load()
+    # Read input image
+    if not os.path.exists(os.path.abspath(args.input_image)):
+        print("Error: file {} does not exist.".format(args.input_image))
+        sys.exit(1)
 
-    # Prepare output canvas
-    output_image = Image.new('RGB', (font_width * resized_width, font_height * resized_height), color=tuple(args.bg))
-    canvas = ImageDraw.Draw(output_image)
+    input_image = Image.open(os.path.abspath(args.input_image))
 
-    for i in range(resized_height):
-        for j in range(resized_width):
-            r, g, b = iterable_image[j, i]
-            char = intensity_to_ascii(int((r + g + b)/3))
-            canvas.text((j*font_width, i*font_height), char, font=font, fill=tuple(args.fg) if args.fg else (r, g, b))
+    if input_image.format == "JPEG":
 
-    output_image.save(os.path.abspath(args.output))
+        output_image = ascii_image(input_image, font, args.scale, args.bg, args.fg)
+        output_image.save(os.path.abspath(args.output))
+
+    elif input_image.format == "GIF":
+        duration = input_image.info["duration"]
+        loop = input_image.info['loop']
+        if(args.parallel):
+            gif_frames = ascii_gif_parallel(input_image, [args.font, args.font_size], args.scale, args.bg, args.fg)
+        else:
+            gif_frames = ascii_gif(input_image, font, args.scale, args.bg, args.fg)
+        output_image = Image.new("RGBA", gif_frames[0].size)
+        output_image.save(fp=args.output, format='GIF', append_images=gif_frames,
+                          save_all=True, duration=duration, loop=loop)
     sys.exit(0)
